@@ -1,6 +1,6 @@
 #![allow(non_camel_case_types, internal_features)]
 #![feature(core_intrinsics, ptr_as_ref_unchecked)]
-use std::{borrow::{Borrow, BorrowMut}, ops::{Index, IndexMut}, ffi::CStr, marker::PhantomData, mem::MaybeUninit};
+use std::{convert::{AsRef, AsMut}, borrow::{Borrow, BorrowMut}, ops::{Deref, DerefMut, Index, IndexMut}, ffi::CStr, marker::PhantomData, mem::MaybeUninit};
 
 #[repr(C)]
 pub enum Type {
@@ -115,15 +115,40 @@ pub struct PrimeArray<T> {
 	_elem: PhantomData<T>
 }
 
-impl<T> Borrow<[T]> for PrimeArray<T> {
-	fn borrow(&self) -> &[T] {
+impl<T> AsRef<[T]> for PrimeArray<T> {
+	fn as_ref<'a>(&'a self) -> &'a [T] {
 		unsafe { std::slice::from_raw_parts(self._buf.cast(), self._len) }
 	}
 }
 
-impl<T> BorrowMut<[T]> for PrimeArray<T> {
-	fn borrow_mut(&mut self) -> &mut [T] {
+impl<T> AsMut<[T]> for PrimeArray<T> {
+	fn as_mut<'a>(&'a mut self) -> &'a mut [T] {
 		unsafe { std::slice::from_raw_parts_mut(self._buf.cast(), self._len) }
+	}
+}
+
+impl<T> Borrow<[T]> for PrimeArray<T> {
+	fn borrow<'a>(&'a self) -> &'a [T] {
+		self.as_ref()
+	}
+}
+
+impl<T> BorrowMut<[T]> for PrimeArray<T> {
+	fn borrow_mut<'a>(&'a mut self) -> &'a mut [T] {
+		self.as_mut()
+	}
+}
+
+impl<T> Deref for PrimeArray<T> {
+	type Target = [T];
+	fn deref(&self) -> &Self::Target {
+		self.as_ref()
+	}
+}
+
+impl<T> DerefMut for PrimeArray<T> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		self.as_mut()
 	}
 }
 
@@ -207,6 +232,10 @@ impl Drop for PrimeIterator {
 	fn drop(&mut self) {
 		unsafe { raw::primesieve_free_iterator(&mut self._raw) }
 	}
+}
+
+impl ParallelIterator for PrimeIterator {
+	
 }
 
 pub fn generate_primes<T: PrimeType>(start: T, stop: T) -> PrimeArray<T> {
