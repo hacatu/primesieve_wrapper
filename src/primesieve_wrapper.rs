@@ -1,6 +1,6 @@
 #![allow(non_camel_case_types, internal_features)]
-#![feature(core_intrinsics, ptr_as_ref_unchecked)]
-use std::{convert::{AsRef, AsMut}, borrow::{Borrow, BorrowMut}, ops::{Deref, DerefMut, Index, IndexMut}, ffi::CStr, marker::PhantomData, mem::MaybeUninit};
+#![feature(core_intrinsics, ptr_as_ref_unchecked, impl_trait_in_assoc_type)]
+use std::{convert::{AsRef, AsMut}, borrow::{Borrow, BorrowMut}, ops::{Deref, DerefMut, Index, IndexMut}, ffi::CStr, marker::PhantomData, mem::{self, MaybeUninit}, iter::{FusedIterator}};
 
 #[repr(C)]
 pub enum Type {
@@ -170,6 +170,75 @@ impl<T> IndexMut<usize> for PrimeArray<T> {
 	fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
 		assert!(idx < self._len, "Index out of bound!");
 		unsafe { self._buf.cast::<T>().add(idx).as_mut_unchecked() }
+	}
+}
+
+pub struct PrimeArrayIterator<T> {
+	arr: PrimeArray<MaybeUninit<T>>,
+	a: usize,
+	b: usize,
+}
+
+impl<T> Iterator for PrimeArrayIterator<T> {
+	type Item = T;
+	fn next(&mut self) -> Option<T> {
+		if self.a == self.b {
+			None
+		} else {
+			self.a += 1;
+			Some(unsafe { self.arr[self.a - 1].assume_init_read() })
+		}
+	}
+
+	fn size_hint(&self) -> (usize, Option<usize>) {
+		let res = self.b - self.a;
+		(res, Some(res))
+	}
+}
+
+impl<T> DoubleEndedIterator for PrimeArrayIterator<T> {
+	fn next_back(&mut self) -> Option<T> {
+		if self.a == self.b {
+			None
+		} else {
+			self.b -= 1;
+			Some(unsafe { self.arr[self.b].assume_init_read() })
+		}
+	}
+}
+
+impl<T> ExactSizeIterator for PrimeArrayIterator<T> {}
+impl<T> FusedIterator for PrimeArrayIterator<T> {}
+
+impl<T> Drop for PrimeArrayIterator<T> {
+	fn drop(&mut self) {
+		self.count(); // consume any remaining elements to ensure Drop is called, since PrimeArrayIterator transmutes the inner type to MaybeUninit to avoid double dropping
+	}
+}
+
+impl<T> IntoIterator for PrimeArray<T> {
+	type Item = T;
+	type IntoIter = PrimeArrayIterator<T>;
+	fn into_iter(self) -> Self::IntoIter {
+		Self::IntoIter { b: self._len, arr: unsafe { mem::transmute(self) }, a: 0 }
+	}
+}
+
+impl<'a, T> IntoIterator for &'a PrimeArray<T> {
+	type Item = &'a T;
+	type IntoIter = impl Iterator<Item=Self::Item> + 'a;
+	fn into_iter(self) -> Self::IntoIter {
+		let tmp: &[_] = self;
+		tmp.into_iter()
+	}
+}
+
+impl<'a, T> IntoIterator for &'a mut PrimeArray<T> {
+	type Item = &'a mut T;
+	type IntoIter = impl Iterator<Item=Self::Item> + 'a;
+	fn into_iter(self) -> Self::IntoIter {
+		let tmp: &mut [_] = self;
+		tmp.into_iter()
 	}
 }
 
