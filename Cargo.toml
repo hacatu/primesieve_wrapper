@@ -1,6 +1,6 @@
 [package]
 name = "primesieve_wrapper"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["hacatu"]
 edition = "2024"
 description = "Wrapper for Primesieve C library"
