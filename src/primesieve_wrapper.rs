@@ -234,9 +234,11 @@ impl Drop for PrimeIterator {
 	}
 }
 
+/*
 impl ParallelIterator for PrimeIterator {
 	
 }
+*/
 
 pub fn generate_primes<T: PrimeType>(start: T, stop: T) -> PrimeArray<T> {
 	unsafe {
